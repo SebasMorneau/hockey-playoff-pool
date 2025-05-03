@@ -1,0 +1,50 @@
+name: Deploy Hockey Playoff Pool
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Deploy
+        run: |
+          # Navigate to the project directory
+          cd hockey-playoff-pool
+
+          # Determine which environment to deploy
+          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+            echo "Deploying to production..."
+            # Build and start production containers
+            docker-compose up -d --build hockey-pool-api hockey-pool-frontend
+            # Stop development containers if they're running
+            docker-compose stop hockey-pool-api-dev hockey-pool-frontend-dev
+          else
+            echo "Deploying to development..."
+            # Build and start development containers
+            docker-compose up -d --build hockey-pool-api-dev hockey-pool-frontend-dev
+            # Stop production containers if they're running
+            docker-compose stop hockey-pool-api hockey-pool-frontend
+          fi
+
+          # Configure nginx-proxy-manager (if needed)
+          echo "Note: You may need to manually configure the proxy hosts in nginx-proxy-manager:"
+          echo "1. Access nginx-proxy-manager at http://your-server-ip:81"
+          echo "2. Add the following proxy hosts:"
+          if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+            echo "   - playoff-pool.emstone.ca -> http://hockey-pool-frontend:5173"
+            echo "   - api-playoff-pool.emstone.ca -> http://hockey-pool-api:3000"
+          else
+            echo "   - dev.playoff-pool.emstone.ca -> http://hockey-pool-frontend-dev:5174"
+            echo "   - api.dev.playoff-pool.emstone.ca -> http://hockey-pool-api-dev:3001"
+          fi

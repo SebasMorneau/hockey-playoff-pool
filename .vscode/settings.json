@@ -1,0 +1,21 @@
+{
+  // Set Prettier as the default formatter for these languages
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  // Enable format on save using the default formatter (Prettier)
+  "editor.formatOnSave": true,
+
+  // Ensure Prettier uses the config file from your project
+  "prettier.requireConfig": true
+}

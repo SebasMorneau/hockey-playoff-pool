@@ -1,0 +1,19 @@
+frontend/node_modules/
+backend/node_modules/
+.env
+.env.local
+.env.*.local
+
+# ESLint cache
+.eslintcache
+
+# Config files
+*.eslintrc.js
+*.prettierrc.js
+
+.DS_Store
+
+/dist
+/build
+frontend/dist/
+frontend/dist/

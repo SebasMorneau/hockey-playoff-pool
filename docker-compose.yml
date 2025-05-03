@@ -1,0 +1,73 @@
+services:
+  # Backend API
+  hockey-pool-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hockey-pool-api
+    restart: unless-stopped
+    ports:
+      - "3300:3300"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/public:/app/public
+      - ./backend/data:/app/data:rw
+    networks:
+      - web_network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3300
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - DB_PATH=${DB_PATH}
+      # Email Configuration
+      - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_SERVICE=${EMAIL_SERVICE}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    user: "${PUID:-1000}:${PGID:-1000}" # Use the host user's UID and GID
+    labels:
+      - "com.emmastone.description=Hockey Playoff Pool API"
+      - "com.emmastone.category=application"
+      - "com.emmastone.stack=hockey-pool"
+      - "com.emmastone.service.port=3300"
+      - "com.emmastone.monitoring.enabled=true"
+      - "com.emmastone.backup.enabled=true"
+      - "com.emmastone.security.level=medium"
+
+  # Frontend
+  hockey-pool-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hockey-pool-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - frontend_node_modules:/app/node_modules
+    networks:
+      - web_network
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_BASE_URL=${VITE_BASE_URL}
+    labels:
+      - "com.emmastone.description=Hockey Playoff Pool Frontend"
+      - "com.emmastone.category=application"
+      - "com.emmastone.stack=hockey-pool"
+      - "com.emmastone.service.port=5173"
+      - "com.emmastone.monitoring.enabled=true"
+      - "com.emmastone.backup.enabled=true"
+      - "com.emmastone.security.level=medium"
+
+volumes:
+  frontend_node_modules:
+  db-data:
+
+networks:
+  web_network:
+    external: true
