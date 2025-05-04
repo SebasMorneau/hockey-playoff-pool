@@ -135,7 +135,7 @@ export const updateSeriesResults = async (
 ) => {
   try {
     const { id } = req.params;
-    const { homeTeamWins, awayTeamWins, gamesPlayed, endDate } = req.body;
+    const { homeTeamWins, awayTeamWins, gamesPlayed, endDate, completed: requestCompleted } = req.body;
 
     const series = await Series.findByPk(id);
     if (!series) {
@@ -153,8 +153,9 @@ export const updateSeriesResults = async (
 
     // Determine winning team
     let winningTeamId: number | undefined = undefined;
-    let completed = false;
+    let completed = requestCompleted || false;
 
+    // If one team has 4 wins, the series must be completed and we set the winning team
     if (homeTeamWins === 4) {
       winningTeamId = series.homeTeamId;
       completed = true;
