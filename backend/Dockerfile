@@ -6,6 +6,9 @@ RUN apk add --no-cache python3 make g++ sqlite
 # Create app directory
 WORKDIR /app
 
+# Set npm cache to a location where node user has permissions
+ENV NPM_CONFIG_CACHE=/tmp/.npm
+
 # Copy package files
 COPY package*.json ./
 
@@ -27,6 +30,9 @@ RUN apk add --no-cache sqlite
 # Create app directory
 WORKDIR /app
 
+# Set npm cache to a location where node user has permissions
+ENV NPM_CONFIG_CACHE=/tmp/.npm
+
 # Copy package files and install production dependencies
 COPY package*.json ./
 RUN npm install --only=production
@@ -42,9 +48,9 @@ COPY --from=builder /app/src/config ./config
 COPY --from=builder /app/public ./public
 
 # Create directories and set permissions
-RUN mkdir -p /app/data /app/logs && \
-    chown -R node:node /app/data /app/logs /app/public && \
-    chmod -R 777 /app/data
+RUN mkdir -p /app/data /app/logs /tmp/.npm && \
+    chown -R node:node /app/data /app/logs /app/public /tmp/.npm && \
+    chmod -R 777 /app/data /tmp/.npm
 
 # Set environment variables
 ENV DB_PATH=/app/data/hockey-pool.db

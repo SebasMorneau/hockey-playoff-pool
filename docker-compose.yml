@@ -12,6 +12,8 @@ services:
       - ./backend/src:/app/src
       - ./backend/public:/app/public
       - ./backend/data:/app/data:rw
+    tmpfs:
+      - /tmp/.npm:exec,mode=1777
     networks:
       - web_network
     dns:
@@ -28,7 +30,7 @@ services:
       - EMAIL_SERVICE=${EMAIL_SERVICE}
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
-    user: "${PUID:-1000}:${PGID:-1000}" # Use the host user's UID and GID
+      - NPM_CONFIG_CACHE=/tmp/.npm
     labels:
       - "com.emmastone.description=Hockey Playoff Pool API"
       - "com.emmastone.category=application"
