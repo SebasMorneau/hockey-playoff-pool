@@ -219,6 +219,8 @@ const api = {
       completed: boolean,
       gamesPlayed: number,
       winningTeamId?: number,
+      startDate?: string,
+      endDate?: string | null,
     ) =>
       axiosInstance.put(`/series/${id}`, {
         homeTeamWins,
@@ -226,6 +228,8 @@ const api = {
         completed,
         gamesPlayed,
         winningTeamId,
+        startDate,
+        endDate,
       }),
 
     // Update user prediction

@@ -135,7 +135,7 @@ export const updateSeriesResults = async (
 ) => {
   try {
     const { id } = req.params;
-    const { homeTeamWins, awayTeamWins, gamesPlayed, endDate, completed: requestCompleted } = req.body;
+    const { homeTeamWins, awayTeamWins, gamesPlayed, startDate, endDate, completed: requestCompleted } = req.body;
 
     const series = await Series.findByPk(id);
     if (!series) {
@@ -170,6 +170,7 @@ export const updateSeriesResults = async (
       gamesPlayed,
       winningTeamId,
       completed,
+      startDate: startDate || series.startDate,
       endDate: completed ? endDate : undefined,
     });
 

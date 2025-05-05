@@ -71,6 +71,14 @@ router.put(
       .optional({ nullable: true })
       .isInt()
       .withMessage('Winning team ID must be an integer'),
+    body('startDate')
+      .optional({ nullable: true })
+      .isISO8601()
+      .withMessage('Start date must be a valid ISO 8601 date'),
+    body('endDate')
+      .optional({ nullable: true })
+      .isISO8601()
+      .withMessage('End date must be a valid ISO 8601 date'),
     validateRequest as unknown as express.RequestHandler,
   ],
   updateSeriesResults as unknown as express.RequestHandler,

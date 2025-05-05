@@ -13,12 +13,17 @@ import {
   Popconfirm,
   Space,
   Typography,
+  Row,
+  Col,
 } from "antd";
 import api from "../../services/api";
 import type { TabsProps } from "antd";
 import { useAuthStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
 import ManagePredictions from "./ManagePredictions";
+import { motion, AnimatePresence } from "framer-motion";
+import Loading from "../../components/common/Loading";
+import dayjs from "dayjs";
 
 const { Title } = Typography;
 
@@ -83,6 +88,8 @@ interface UpdateSeriesFormValues {
   awayTeamWins: number;
   gamesPlayed: number;
   completed: boolean;
+  startDate?: string;
+  endDate?: string | null;
 }
 
 // Add this interface for error handling
@@ -196,6 +203,8 @@ const ManagePlayoffs: React.FC = () => {
       awayTeamWins: series.awayTeamWins,
       gamesPlayed: series.gamesPlayed,
       completed: series.completed,
+      startDate: series.startDate ? dayjs(series.startDate) : undefined,
+      endDate: series.endDate ? dayjs(series.endDate) : undefined,
     });
     setUpdateSeriesModalVisible(true);
   };
@@ -213,7 +222,7 @@ const ManagePlayoffs: React.FC = () => {
           selectedSeries.roundId,
           values.homeTeamId,
           values.awayTeamId,
-          selectedSeries.startDate,
+          values.startDate || selectedSeries.startDate,
         );
       }
 
@@ -228,17 +237,29 @@ const ManagePlayoffs: React.FC = () => {
         return;
       }
 
+      // Format dates for API call
+      const startDate = values.startDate
+        ? dayjs(values.startDate).format("YYYY-MM-DD")
+        : undefined;
+
+      const endDate = values.endDate
+        ? dayjs(values.endDate).format("YYYY-MM-DD")
+        : null;
+
       await api.admin.updateSeriesResults(
         selectedSeries.id,
         homeTeamWins,
         awayTeamWins,
         values.completed,
         gamesPlayed,
+        undefined,
+        startDate,
+        endDate,
       );
       message.success("Series updated successfully");
       setUpdateSeriesModalVisible(false);
-      setSelectedSeries(null);
       updateSeriesForm.resetFields();
+      setSelectedSeries(null);
       fetchData();
     } catch (error) {
       const apiError = error as ApiError;
@@ -309,6 +330,14 @@ const ManagePlayoffs: React.FC = () => {
         record.startDate
           ? new Date(record.startDate).toLocaleDateString()
           : "Non définie",
+    },
+    {
+      title: "Date de Fin",
+      key: "endDate",
+      render: (record: Series) =>
+        record.endDate
+          ? new Date(record.endDate).toLocaleDateString()
+          : "En cours",
     },
     {
       title: "Score",
@@ -631,102 +660,183 @@ const ManagePlayoffs: React.FC = () => {
           updateSeriesForm.resetFields();
         }}
         footer={null}
+        width={600}
+        centered
       >
+        <AnimatePresence>
+          {actionLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 1001,
+              }}
+            >
+              <Loading />
+            </motion.div>
+          )}
+          {successAnim && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 1001,
+              }}
+            >
+              <div style={{ color: "#52c41a", fontSize: "24px" }}>✔</div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Form
           form={updateSeriesForm}
           layout="vertical"
           onFinish={handleUpdateSeriesSubmit}
         >
-          <div style={{ marginBottom: 24 }}>
-            <h3 style={{ marginBottom: 16 }}>Équipes</h3>
-            <Form.Item
-              name="homeTeamId"
-              label="Équipe Domicile"
-              rules={[
-                {
-                  required: true,
-                  message: "Veuillez sélectionner l'équipe à domicile!",
-                },
-              ]}
-            >
-              <Select>
-                {teams.map((team) => (
-                  <Select.Option key={team.id} value={team.id}>
-                    {team.name}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <div style={{ marginBottom: 24 }}>
+                <h3 style={{ marginBottom: 16 }}>Équipes</h3>
+                <Form.Item
+                  name="homeTeamId"
+                  label="Équipe Domicile"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Veuillez sélectionner l'équipe à domicile!",
+                    },
+                  ]}
+                >
+                  <Select>
+                    {teams.map((team) => (
+                      <Select.Option key={team.id} value={team.id}>
+                        {team.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
 
-            <Form.Item
-              name="awayTeamId"
-              label="Équipe Extérieur"
-              rules={[
-                {
-                  required: true,
-                  message: "Veuillez sélectionner l'équipe à l'extérieur!",
-                },
-              ]}
-            >
-              <Select>
-                {teams.map((team) => (
-                  <Select.Option key={team.id} value={team.id}>
-                    {team.name}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </div>
+                <Form.Item
+                  name="awayTeamId"
+                  label="Équipe Extérieur"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Veuillez sélectionner l'équipe à l'extérieur!",
+                    },
+                  ]}
+                >
+                  <Select>
+                    {teams.map((team) => (
+                      <Select.Option key={team.id} value={team.id}>
+                        {team.name}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </div>
+            </Col>
 
-          <div style={{ marginBottom: 24 }}>
-            <h3 style={{ marginBottom: 16 }}>Score</h3>
-            <Form.Item
-              name="homeTeamWins"
-              label="Victoires à Domicile"
-              rules={[
-                {
-                  required: true,
-                  message: "Veuillez saisir le nombre de victoires à domicile",
-                },
-              ]}
-            >
-              <Input type="number" min={0} />
-            </Form.Item>
+            <Col xs={24} md={12}>
+              <div style={{ marginBottom: 24 }}>
+                <h3 style={{ marginBottom: 16 }}>Dates</h3>
+                <Form.Item
+                  name="startDate"
+                  label="Date de Début"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Veuillez sélectionner la date de début!",
+                    },
+                  ]}
+                >
+                  <DatePicker style={{ width: "100%" }} />
+                </Form.Item>
 
-            <Form.Item
-              name="awayTeamWins"
-              label="Victoires à l'Extérieur"
-              rules={[
-                {
-                  required: true,
-                  message:
-                    "Veuillez saisir le nombre de victoires à l'extérieur",
-                },
-              ]}
-            >
-              <Input type="number" min={0} />
-            </Form.Item>
+                <Form.Item name="endDate" label="Date de Fin">
+                  <DatePicker style={{ width: "100%" }} />
+                </Form.Item>
+              </div>
+            </Col>
+          </Row>
 
-            <Form.Item
-              name="gamesPlayed"
-              label="Matchs Joués"
-              rules={[
-                {
-                  required: true,
-                  message: "Veuillez saisir le nombre de matchs joués",
-                },
-              ]}
-            >
-              <Input type="number" min={0} />
-            </Form.Item>
-          </div>
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={12}>
+              <div style={{ marginBottom: 24 }}>
+                <h3 style={{ marginBottom: 16 }}>Score</h3>
+                <Form.Item
+                  name="homeTeamWins"
+                  label="Victoires à Domicile"
+                  rules={[
+                    {
+                      required: true,
+                      message:
+                        "Veuillez saisir le nombre de victoires à domicile",
+                    },
+                  ]}
+                >
+                  <Input type="number" min={0} />
+                </Form.Item>
 
-          <Form.Item name="completed" valuePropName="checked">
-            <Input type="checkbox" /> Série Terminée
-          </Form.Item>
+                <Form.Item
+                  name="awayTeamWins"
+                  label="Victoires à l'Extérieur"
+                  rules={[
+                    {
+                      required: true,
+                      message:
+                        "Veuillez saisir le nombre de victoires à l'extérieur",
+                    },
+                  ]}
+                >
+                  <Input type="number" min={0} />
+                </Form.Item>
+
+                <Form.Item
+                  name="gamesPlayed"
+                  label="Matchs Joués"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Veuillez saisir le nombre de matchs joués",
+                    },
+                  ]}
+                >
+                  <Input type="number" min={0} />
+                </Form.Item>
+              </div>
+            </Col>
+
+            <Col xs={24} md={12}>
+              <div style={{ marginTop: 55 }}>
+                <Form.Item name="completed" valuePropName="checked">
+                  <Input type="checkbox" /> Série Terminée
+                </Form.Item>
+              </div>
+            </Col>
+          </Row>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" loading={loading} block>
               Mettre à jour la Série
             </Button>
           </Form.Item>
