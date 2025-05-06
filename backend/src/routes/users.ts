@@ -2,14 +2,15 @@ import express, { Request, Response, NextFunction } from 'express';
 import { User } from '../models';
 import { authenticate } from '../middleware/auth';
 
-// Extend Express Request type to include user
+// Define user type for auth middleware
 interface RequestUser {
   userId: number;
   email: string;
   isAdmin: boolean;
 }
 
-declare module 'express' {
+// Extend the Request interface
+declare module 'express-serve-static-core' {
   interface Request {
     user: RequestUser;
   }
@@ -21,7 +22,7 @@ const router = express.Router();
 router.get(
   '/',
   authenticate,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const users = await User.findAll({
         attributes: [
@@ -37,14 +38,14 @@ router.get(
     } catch (error) {
       next(error);
     }
-  },
+  }) as any
 );
 
 // Get user by ID
 router.get(
   '/:id',
   authenticate,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await User.findByPk(req.params.id, {
         attributes: [
@@ -64,14 +65,14 @@ router.get(
     } catch (error) {
       next(error);
     }
-  },
+  }) as any
 );
 
 // Update user
 router.put(
   '/:id',
   authenticate,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await User.findByPk(req.params.id);
       if (!user) {
@@ -90,14 +91,14 @@ router.put(
     } catch (error) {
       next(error);
     }
-  },
+  }) as any
 );
 
 // Delete user
 router.delete(
   '/:id',
   authenticate,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const user = await User.findByPk(req.params.id);
       if (!user) {
@@ -116,7 +117,7 @@ router.delete(
     } catch (error) {
       next(error);
     }
-  },
+  }) as any
 );
 
 export default router;

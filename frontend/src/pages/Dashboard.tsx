@@ -212,6 +212,19 @@ const Dashboard = () => {
     Record<number, PredictionSummary>
   >({});
   const [showCongratulations, setShowCongratulations] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Handle window resize for mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -586,10 +599,13 @@ const Dashboard = () => {
           size="small"
           className="hover-effect"
           style={{
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            borderRadius: "8px",
-            borderLeft: `4px solid ${token.colorWarning}`,
+            boxShadow: isMobile ? "none" : "0 4px 12px rgba(0,0,0,0.1)",
+            borderRadius: isMobile ? "0" : "8px",
+            borderLeft: isMobile ? "none" : `4px solid ${token.colorWarning}`,
             marginBottom: "24px",
+            border: isMobile ? "none" : undefined,
+            margin: isMobile ? "0 -8px 24px -8px" : "0 0 24px 0",
+            width: isMobile ? "calc(100% + 16px)" : "100%",
           }}
         >
           <div
@@ -760,9 +776,12 @@ const Dashboard = () => {
           size="small"
           className="hover-effect"
           style={{
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            borderRadius: "8px",
+            boxShadow: isMobile ? "none" : "0 2px 8px rgba(0,0,0,0.08)",
+            borderRadius: isMobile ? "0" : "8px",
             background: `linear-gradient(135deg, ${token.colorBgContainer}, ${token.colorInfoBg})`,
+            border: isMobile ? "none" : undefined,
+            margin: isMobile ? "0 -8px" : "0",
+            width: isMobile ? "calc(100% + 16px)" : "100%",
           }}
           bodyStyle={{ padding: "12px" }}
         >
@@ -1468,9 +1487,12 @@ const Dashboard = () => {
               size="small"
               className="hover-effect"
               style={{
-                boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
-                borderRadius: "8px",
+                boxShadow: isMobile ? "none" : "0 3px 10px rgba(0,0,0,0.08)",
+                borderRadius: isMobile ? "0" : "8px",
                 height: "100%",
+                border: isMobile ? "none" : undefined,
+                margin: isMobile ? "0 -8px" : "0",
+                width: isMobile ? "calc(100% + 16px)" : "100%",
               }}
               headStyle={{
                 padding: "12px",

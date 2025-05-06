@@ -1,11 +1,31 @@
 import nodemailer from 'nodemailer';
-import { logger } from './logger';
+import { logger, emailLogger, generateRequestId, createPerformanceTimer } from './logger';
 
 // Configuration des emails
 const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@emstone.ca';
 const EMAIL_SERVICE = process.env.EMAIL_SERVICE;
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASSWORD = process.env.EMAIL_PASSWORD;
+const EMAIL_RETRY_ATTEMPTS = Number(process.env.EMAIL_RETRY_ATTEMPTS || '3');
+const EMAIL_RETRY_DELAY = Number(process.env.EMAIL_RETRY_DELAY || '1000'); // ms
+
+// Interface pour les statistiques d'email
+interface EmailStats {
+  totalAttempts: number;
+  successCount: number;
+  failureCount: number;
+  lastSendTime: Date | null;
+  averageSendTime: number;
+}
+
+// Statistiques globales pour le monitoring des emails
+const emailStats: EmailStats = {
+  totalAttempts: 0,
+  successCount: 0,
+  failureCount: 0,
+  lastSendTime: null,
+  averageSendTime: 0,
+};
 
 // Drapeau pour suivre si l'envoi d'emails est activé
 const EMAIL_ENABLED = Boolean(EMAIL_SERVICE && EMAIL_USER && EMAIL_PASSWORD);
@@ -14,12 +34,17 @@ if (!EMAIL_ENABLED) {
   logger.warn(
     "L'envoi d'emails est désactivé. Définissez EMAIL_SERVICE, EMAIL_USER et EMAIL_PASSWORD pour activer l'envoi d'emails.",
   );
+  emailLogger.warn(
+    "L'envoi d'emails est désactivé. Définissez EMAIL_SERVICE, EMAIL_USER et EMAIL_PASSWORD pour activer l'envoi d'emails.",
+    { emailConfig: { service: EMAIL_SERVICE ? '✓' : '✗', user: EMAIL_USER ? '✓' : '✗', password: EMAIL_PASSWORD ? '✓' : '✗' } }
+  );
 }
 
 // Créer le transporteur en fonction de la configuration
 let transporter: nodemailer.Transporter;
 
 if (EMAIL_ENABLED) {
+  emailLogger.debug('Initialisation du transporteur email avec service: ' + EMAIL_SERVICE);
   transporter = nodemailer.createTransport({
     service: EMAIL_SERVICE,
     auth: {
@@ -29,6 +54,7 @@ if (EMAIL_ENABLED) {
   });
 } else {
   // Utiliser un transporteur de test qui enregistre les emails au lieu de les envoyer
+  emailLogger.debug('Initialisation du transporteur email de test');
   transporter = nodemailer.createTransport({
     host: 'localhost',
     port: 25,
@@ -43,10 +69,116 @@ if (EMAIL_ENABLED) {
 transporter.verify((error) => {
   if (error) {
     logger.error("Échec de la vérification du transporteur d'email:", error);
+    emailLogger.error("Échec de la vérification du transporteur d'email:", { 
+      error: { 
+        message: error.message, 
+        stack: error.stack,
+        code: (error as any).code,
+        command: (error as any).command
+      },
+      emailConfig: { 
+        service: EMAIL_SERVICE, 
+        user: EMAIL_USER ? '✓' : '✗'
+      }
+    });
   } else {
     logger.info("Le transporteur d'email est prêt à envoyer des messages");
+    emailLogger.info("Le transporteur d'email est prêt à envoyer des messages", {
+      emailConfig: { 
+        service: EMAIL_SERVICE, 
+        enabled: EMAIL_ENABLED 
+      }
+    });
   }
 });
+
+/**
+ * Fonction d'aide pour tenter d'envoyer un email avec des tentatives de réessai
+ */
+async function trySendMail(
+  mailOptions: nodemailer.SendMailOptions, 
+  requestId: string,
+  maxAttempts = EMAIL_RETRY_ATTEMPTS
+): Promise<nodemailer.SentMessageInfo> {
+  let lastError: any;
+  let attempt = 0;
+
+  while (attempt < maxAttempts) {
+    attempt++;
+    try {
+      emailLogger.debug(`Tentative d'envoi d'email [${attempt}/${maxAttempts}]`, { 
+        requestId,
+        recipient: mailOptions.to, 
+        subject: mailOptions.subject,
+        attempt
+      });
+      
+      const result = await transporter.sendMail(mailOptions);
+      
+      emailLogger.debug(`Email envoyé avec succès à la tentative ${attempt}`, { 
+        requestId,
+        messageId: result.messageId,
+        response: result.response 
+      });
+      
+      return result;
+    } catch (error) {
+      lastError = error;
+      const delay = attempt * EMAIL_RETRY_DELAY;
+      
+      emailLogger.warn(`Échec de la tentative ${attempt}/${maxAttempts} d'envoi d'email`, { 
+        requestId,
+        error: { 
+          message: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : 'UnknownError',
+          code: (error as any)?.code
+        },
+        recipient: mailOptions.to,
+        nextRetryIn: delay
+      });
+      
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // Si nous arrivons ici, toutes les tentatives ont échoué
+  throw lastError;
+}
+
+/**
+ * Mise à jour des statistiques d'envoi d'email
+ */
+function updateEmailStats(success: boolean, duration: number): void {
+  emailStats.totalAttempts++;
+  if (success) {
+    emailStats.successCount++;
+    emailStats.lastSendTime = new Date();
+    
+    // Mettre à jour le temps moyen d'envoi
+    emailStats.averageSendTime = (
+      (emailStats.averageSendTime * (emailStats.successCount - 1) + duration) / 
+      emailStats.successCount
+    );
+  } else {
+    emailStats.failureCount++;
+  }
+  
+  // Log des statistiques d'emails périodiquement (à chaque 10 tentatives)
+  if (emailStats.totalAttempts % 10 === 0) {
+    emailLogger.info('Statistiques d\'envoi d\'emails', {
+      stats: { ...emailStats, successRate: `${(emailStats.successCount / emailStats.totalAttempts * 100).toFixed(2)}%` }
+    });
+  }
+}
+
+/**
+ * Obtenir les statistiques actuelles d'envoi d'email
+ */
+export function getEmailStats(): EmailStats {
+  return { ...emailStats };
+}
 
 // Envoyer l'email avec le lien magique
 export const sendMagicLink = async (
@@ -54,10 +186,23 @@ export const sendMagicLink = async (
   name: string,
   magicLink: string,
 ): Promise<void> => {
+  const requestId = generateRequestId();
+  const timer = createPerformanceTimer();
+  let success = false;
+
+  emailLogger.info(`Préparation de l'envoi d'un email avec lien magique`, {
+    requestId,
+    recipient: email,
+    name,
+    linkExpiryMinutes: 30
+  });
+  
   try {
     // Valider l'adresse email
     if (!email || typeof email !== 'string' || !email.includes('@')) {
-      throw new Error(`Adresse email invalide: ${email}`);
+      const errorMsg = `Adresse email invalide: ${email}`;
+      emailLogger.error(errorMsg, { requestId });
+      throw new Error(errorMsg);
     }
 
     // Contenu de l'email
@@ -195,13 +340,45 @@ L'équipe du Pool des Séries Éliminatoires NHL
       `,
     };
 
-    // Envoyer l'email
-    const info = await transporter.sendMail(mailOptions);
+    // Envoyer l'email avec mécanisme de réessai
+    const info = await trySendMail(mailOptions, requestId);
+    
+    success = true;
+    const duration = timer.end();
+    
+    // Mise à jour des statistiques
+    updateEmailStats(true, duration);
+    
     logger.info(`Email avec lien magique envoyé à ${email}`, {
       messageId: info.messageId,
     });
+    
+    emailLogger.info(`Email avec lien magique envoyé avec succès`, {
+      requestId,
+      recipient: email,
+      messageId: info.messageId,
+      duration: `${duration.toFixed(2)}ms`,
+    });
   } catch (error) {
+    const duration = timer.end();
+    updateEmailStats(false, duration);
+    
+    const errorDetails = {
+      requestId,
+      recipient: email,
+      duration: `${duration.toFixed(2)}ms`,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'UnknownError',
+        stack: error instanceof Error ? error.stack : undefined,
+        code: (error as any)?.code,
+        responseCode: (error as any)?.responseCode,
+      }
+    };
+    
     logger.error(`Échec de l'envoi de l'email avec lien magique à ${email}:`, error);
+    emailLogger.error(`Échec définitif de l'envoi de l'email avec lien magique`, errorDetails);
+    
     throw error; // Relancer pour gérer dans le contrôleur
   }
 };
@@ -213,10 +390,22 @@ export const sendNotification = async (
   textContent: string,
   htmlContent: string,
 ): Promise<void> => {
+  const requestId = generateRequestId();
+  const timer = createPerformanceTimer();
+  let success = false;
+  
+  emailLogger.info(`Préparation de l'envoi d'un email de notification`, {
+    requestId,
+    recipient: email,
+    subject
+  });
+  
   try {
     // Valider l'adresse email
     if (!email || typeof email !== 'string' || !email.includes('@')) {
-      throw new Error(`Adresse email invalide: ${email}`);
+      const errorMsg = `Adresse email invalide: ${email}`;
+      emailLogger.error(errorMsg, { requestId });
+      throw new Error(errorMsg);
     }
 
     // Contenu de l'email
@@ -228,13 +417,47 @@ export const sendNotification = async (
       html: htmlContent,
     };
 
-    // Envoyer l'email
-    const info = await transporter.sendMail(mailOptions);
+    // Envoyer l'email avec mécanisme de réessai
+    const info = await trySendMail(mailOptions, requestId);
+    
+    success = true;
+    const duration = timer.end();
+    
+    // Mise à jour des statistiques
+    updateEmailStats(true, duration);
+    
     logger.info(`Email de notification envoyé à ${email}`, {
       messageId: info.messageId,
     });
+    
+    emailLogger.info(`Email de notification envoyé avec succès`, {
+      requestId,
+      recipient: email,
+      subject,
+      messageId: info.messageId,
+      duration: `${duration.toFixed(2)}ms`,
+    });
   } catch (error) {
+    const duration = timer.end();
+    updateEmailStats(false, duration);
+    
+    const errorDetails = {
+      requestId,
+      recipient: email,
+      subject,
+      duration: `${duration.toFixed(2)}ms`,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'UnknownError',
+        stack: error instanceof Error ? error.stack : undefined,
+        code: (error as any)?.code,
+        responseCode: (error as any)?.responseCode,
+      }
+    };
+    
     logger.error(`Échec de l'envoi de l'email de notification à ${email}:`, error);
+    emailLogger.error(`Échec définitif de l'envoi de l'email de notification`, errorDetails);
+    
     throw error; // Relancer pour gérer dans le contrôleur
   }
 };

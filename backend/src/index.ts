@@ -1,6 +1,5 @@
-import express from 'express'
+import express, { ErrorRequestHandler, RequestHandler } from 'express'
 import helmet from 'helmet';
-import morgan from 'morgan';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -15,7 +14,7 @@ import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
 import proxyRoutes from './routes/proxy';
 import { errorHandler } from './middleware/errorHandler';
-import { logger } from './utils/logger';
+import { logger, logRequest, logError, apiLogger, createPerformanceTimer } from './utils/logger';
 import { authenticate } from './middleware/auth';
 import fs from 'fs';
 
@@ -30,6 +29,13 @@ const allowedOrigins = [
   'https://playoff-pool.emstone.ca',
   'https://api-playoff-pool.emstone.ca'
 ];
+
+// Log application startup
+logger.info('Starting NHL Playoff Pool API server', {
+  environment: process.env.NODE_ENV || 'development',
+  port,
+  allowedOrigins
+});
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -50,13 +56,20 @@ app.use((_req, res, next) => {
   next();
 });
 
+// Apply security and performance middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginEmbedderPolicy: false,
 }));
 
 app.use(compression());
-app.use(morgan('combined'));
+
+// Apply custom logging middleware instead of morgan
+app.use(logRequest);
+
+// Register error logging middleware
+app.use(logError);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -84,17 +97,29 @@ app.get('/images/:filename', (req, res) => {
     if (fs.existsSync(imagePath)) {
       res.sendFile(imagePath, (err) => {
         if (err) {
-          logger.error(`Erreur lors de l'envoi du fichier image: ${filename}`, err);
-          res.status(500).json({ message: 'Erreur lors de la fourniture du fichier image' });
+          logger.error(`Error sending image file: ${filename}`, { 
+            error: err.message,
+            path: imagePath,
+            requestId: req.requestId
+          });
+          res.status(500).json({ message: 'Error providing image file' });
         }
       });
     } else {
-      logger.warn(`Image non trouvée au chemin: ${imagePath}`);
-      res.status(404).json({ message: `Image non trouvée: ${filename}` });
+      logger.warn(`Image not found at path: ${imagePath}`, { 
+        filename,
+        path: imagePath,
+        requestId: req.requestId
+      });
+      res.status(404).json({ message: `Image not found: ${filename}` });
     }
   } catch (error) {
-    logger.error(`Erreur lors du traitement de la demande d'image: ${filename}`, error);
-    res.status(500).json({ message: 'Erreur interne du serveur lors du traitement de la demande d\'image' });
+    logger.error(`Error processing image request: ${filename}`, {
+      error,
+      path: imagePath,
+      requestId: req.requestId
+    });
+    res.status(500).json({ message: 'Internal server error processing image request' });
   }
 });
 
@@ -107,82 +132,121 @@ app.get('/logos/:filename', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
   
   try {
-    logger.info(`Tentative de fourniture du logo: ${filename} depuis le chemin: ${logoPath}`);
+    apiLogger.info(`Attempting to serve logo: ${filename}`, {
+      path: logoPath,
+      requestId: req.requestId
+    });
     
     if (fs.existsSync(logoPath)) {
       res.sendFile(logoPath, (err) => {
         if (err) {
-          logger.error(`Erreur lors de l'envoi du fichier logo: ${filename}`, err);
-          res.status(500).json({ message: 'Erreur lors de la fourniture du fichier logo' });
+          logger.error(`Error sending logo file: ${filename}`, {
+            error: err.message,
+            path: logoPath,
+            requestId: req.requestId
+          });
+          res.status(500).json({ message: 'Error providing logo file' });
         }
       });
     } else {
-      logger.warn(`Logo non trouvé au chemin: ${logoPath}`);
+      logger.warn(`Logo not found at path: ${logoPath}`, {
+        filename,
+        path: logoPath,
+        requestId: req.requestId
+      });
       res.status(404).json({ 
-        message: 'Logo non trouvé',
+        message: 'Logo not found',
         requestedPath: logoPath,
         publicDir: PUBLIC_DIR
       });
     }
   } catch (error: any) {
-    logger.error(`Erreur lors du traitement de la demande de logo pour ${filename} au chemin ${logoPath}`, error);
+    logger.error(`Error processing logo request for ${filename}`, {
+      error: error.message || 'Unknown error',
+      path: logoPath,
+      publicDir: PUBLIC_DIR,
+      requestId: req.requestId
+    });
     res.status(500).json({ 
-      message: 'Erreur interne du serveur lors du traitement de la demande de logo',
-      error: error.message || 'Erreur inconnue',
+      message: 'Internal server error processing logo request',
+      error: error.message || 'Unknown error',
       requestedPath: logoPath,
       publicDir: PUBLIC_DIR
     });
   }
 });
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (req, res) => {
+  apiLogger.info('Health check', { requestId: req.requestId });
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 app.get('/api/cors-test', (req, res) => {
+  apiLogger.info('CORS test', { 
+    headers: req.headers,
+    requestId: req.requestId
+  });
   res.status(200).json({ 
-    message: 'CORS fonctionne', 
+    message: 'CORS working', 
     headers: req.headers,
     timestamp: new Date().toISOString() 
   });
 });
 
+// API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/teams', authenticate, teamRoutes);
-app.use('/api/rounds', authenticate, roundRoutes);
-app.use('/api/series', authenticate, seriesRoutes);
-app.use('/api/predictions', authenticate, predictionRoutes);
+app.use('/api/teams', authenticate as RequestHandler, teamRoutes);
+app.use('/api/rounds', authenticate as RequestHandler, roundRoutes);
+app.use('/api/series', authenticate as RequestHandler, seriesRoutes);
+app.use('/api/predictions', authenticate as RequestHandler, predictionRoutes);
 app.use('/api/stanley-cup', stanleyCupRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/proxy-image', proxyRoutes);
 
-app.use(errorHandler);
+// Global error handler
+app.use(errorHandler as ErrorRequestHandler);
 
 const startServer = async () => {
   try {
+    // Create a performance timer for server startup
+    const startupTimer = createPerformanceTimer('server_startup');
+    
+    // Database connection
+    const dbTimer = createPerformanceTimer('database_connection');
     await sequelize.sync({ force: false });
-    logger.info('Base de données synchronisée avec succès');
+    dbTimer.end();
+    
+    logger.info('Database synchronized successfully');
 
+    // Start server
     app.listen(port, () => {
-      logger.info(`Serveur en cours d'exécution sur le port ${port}`);
+      const totalStartupTime = startupTimer.end();
+      logger.info(`Server running on port ${port}`, { 
+        startupTime: `${totalStartupTime.toFixed(2)}ms` 
+      });
     });
   } catch (error) {
-    logger.error('Échec du démarrage du serveur:', error);
+    logger.error('Failed to start server:', {
+      error,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     process.exit(1);
   }
 };
 
 startServer();
 
+// Handle graceful shutdown
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM reçu, arrêt gracieux');
+  logger.info('SIGTERM received, graceful shutdown');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  logger.info('SIGINT reçu, arrêt gracieux');
+  logger.info('SIGINT received, graceful shutdown');
   process.exit(0);
 });
 
+// Export app for testing
 export default app;

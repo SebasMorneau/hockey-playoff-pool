@@ -12,6 +12,7 @@ services:
       - ./backend/src:/app/src
       - ./backend/public:/app/public
       - ./backend/data:/app/data:rw
+      - ./backend/logs:/app/logs:rw
     tmpfs:
       - /tmp/.npm:exec,mode=1777
     networks:
@@ -30,6 +31,11 @@ services:
       - EMAIL_SERVICE=${EMAIL_SERVICE}
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - EMAIL_RETRY_ATTEMPTS=${EMAIL_RETRY_ATTEMPTS:-3}
+      - EMAIL_RETRY_DELAY=${EMAIL_RETRY_DELAY:-1000}
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - EMAIL_LOG_LEVEL=${EMAIL_LOG_LEVEL:-debug}
       - NPM_CONFIG_CACHE=/tmp/.npm
     labels:
       - "com.emmastone.description=Hockey Playoff Pool API"
