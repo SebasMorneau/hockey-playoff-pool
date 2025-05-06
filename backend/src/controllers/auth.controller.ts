@@ -174,6 +174,10 @@ export const getCurrentUser = async (
   next: NextFunction,
 ) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    
     const userId = req.user.userId;
 
     const user = await User.findByPk(userId, {
@@ -203,6 +207,10 @@ export const updateProfile = async (
   next: NextFunction,
 ) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    
     const userId = req.user.userId;
     const { name } = req.body;
 

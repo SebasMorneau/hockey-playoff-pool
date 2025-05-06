@@ -11,7 +11,9 @@ import {
   createMatchup,
   inviteUser,
   deleteUser,
-  updateUserPrediction
+  updateUserPrediction,
+  getEmailDiagnostics,
+  testEmailSending
 } from '../controllers/admin.controller';
 import { getConfig, updateConfig } from '../controllers/config.controller';
 
@@ -125,6 +127,19 @@ router.patch(
     validateRequest as unknown as express.RequestHandler,
   ],
   updateUserPrediction as unknown as express.RequestHandler,
+);
+
+// Email diagnostics endpoint
+router.get('/email/diagnostics', getEmailDiagnostics as unknown as express.RequestHandler);
+
+// Test email sending
+router.post(
+  '/email/test',
+  [
+    body('email').isEmail().withMessage('Please provide a valid email'),
+    validateRequest as unknown as express.RequestHandler,
+  ],
+  testEmailSending as unknown as express.RequestHandler,
 );
 
 export default router;

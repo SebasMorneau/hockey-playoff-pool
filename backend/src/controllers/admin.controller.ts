@@ -3,7 +3,7 @@ import { User, Team, Round, Series, Prediction } from '../models';
 import { seedTeams } from './teams.controller';
 import { seedRounds } from './rounds.controller';
 import { logger } from '../utils/logger';
-import { sendMagicLink } from '../utils/email';
+import { sendMagicLink, getEmailStats } from '../utils/email';
 import { v4 as uuidv4 } from 'uuid';
 import { Sequelize } from 'sequelize';
 
@@ -448,6 +448,87 @@ export const updateUserPrediction = async (
     });
   } catch (error) {
     logger.error('Error updating user prediction:', error);
+    next(error);
+  }
+};
+
+// Get email system diagnostics
+export const getEmailDiagnostics = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    // Get current email statistics
+    const emailStats = getEmailStats();
+    
+    // Calculate success rate
+    const successRate = emailStats.totalAttempts > 0 
+      ? (emailStats.successCount / emailStats.totalAttempts * 100).toFixed(2) + '%'
+      : 'N/A';
+    
+    // Format last send time
+    const lastSendTimeFormatted = emailStats.lastSendTime 
+      ? emailStats.lastSendTime.toISOString()
+      : 'Never';
+    
+    // Build diagnostic info
+    const diagnosticInfo = {
+      stats: {
+        ...emailStats,
+        successRate,
+        lastSendTimeFormatted,
+        averageSendTimeMs: emailStats.averageSendTime.toFixed(2)
+      },
+      config: {
+        service: process.env.EMAIL_SERVICE || 'Not configured',
+        from: process.env.EMAIL_FROM || 'noreply@emstone.ca',
+        enabled: Boolean(
+          process.env.EMAIL_SERVICE && 
+          process.env.EMAIL_USER && 
+          process.env.EMAIL_PASSWORD
+        ),
+        retryAttempts: Number(process.env.EMAIL_RETRY_ATTEMPTS || '3'),
+        retryDelay: Number(process.env.EMAIL_RETRY_DELAY || '1000')
+      }
+    };
+    
+    return res.status(200).json(diagnosticInfo);
+  } catch (error) {
+    logger.error('Error getting email diagnostics:', error);
+    next(error);
+  }
+};
+
+// Test email sending
+export const testEmailSending = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email address is required' });
+    }
+    
+    logger.info(`Admin requested test email to ${email}`);
+    
+    // Generate a fake magic link for testing
+    const testToken = 'test-email-' + Date.now();
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const testLink = `${frontendUrl}/test?token=${testToken}`;
+    
+    // Send test email
+    await sendMagicLink(email, 'Test User', testLink);
+    
+    return res.status(200).json({ 
+      message: 'Test email sent successfully',
+      stats: getEmailStats()
+    });
+  } catch (error) {
+    logger.error('Error sending test email:', error);
     next(error);
   }
 };
