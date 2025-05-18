@@ -19,8 +19,6 @@ import type { TabsProps } from "antd";
 import { useAuthStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
 import ManagePredictions from "./ManagePredictions";
-import { motion, AnimatePresence } from "framer-motion";
-import Loading from "../../components/common/Loading";
 
 const { Title } = Typography;
 
@@ -115,8 +113,6 @@ const ManagePlayoffs: React.FC = () => {
     useState(false);
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [updateSeriesForm] = Form.useForm();
-  const [actionLoading, setActionLoading] = useState(false);
-  const [successAnim, setSuccessAnim] = useState(false);
 
   useEffect(() => {
     if (!user?.isAdmin) {
@@ -154,7 +150,6 @@ const ManagePlayoffs: React.FC = () => {
   };
 
   const handleRoundSubmit = async (values: RoundFormValues) => {
-    setActionLoading(true);
     try {
       await api.admin.createRound(
         values.name,
@@ -163,21 +158,16 @@ const ManagePlayoffs: React.FC = () => {
         values.endDate,
         values.season,
       );
-      setSuccessAnim(true);
-      setTimeout(() => setSuccessAnim(false), 1200);
       message.success("Round created successfully");
       roundForm.resetFields();
       fetchData();
     } catch (error) {
       const apiError = error as ApiError;
       message.error(apiError.response?.data?.message || "Error creating round");
-    } finally {
-      setActionLoading(false);
     }
   };
 
   const handleSeriesSubmit = async (values: SeriesFormValues) => {
-    setActionLoading(true);
     try {
       await api.admin.createSeries(
         values.roundId,
@@ -185,8 +175,6 @@ const ManagePlayoffs: React.FC = () => {
         values.awayTeamId,
         values.startDate,
       );
-      setSuccessAnim(true);
-      setTimeout(() => setSuccessAnim(false), 1200);
       message.success("Series created successfully");
       setUpdateSeriesModalVisible(false);
       seriesForm.resetFields();
@@ -196,8 +184,6 @@ const ManagePlayoffs: React.FC = () => {
       message.error(
         apiError.response?.data?.message || "Error creating series",
       );
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -217,7 +203,6 @@ const ManagePlayoffs: React.FC = () => {
   const handleUpdateSeriesSubmit = async (values: UpdateSeriesFormValues) => {
     if (!selectedSeries) return;
 
-    setActionLoading(true);
     try {
       // Update teams if they've changed
       if (
@@ -250,30 +235,23 @@ const ManagePlayoffs: React.FC = () => {
         values.completed,
         gamesPlayed,
       );
-      setSuccessAnim(true);
-      setTimeout(() => setSuccessAnim(false), 1200);
       message.success("Series updated successfully");
       setUpdateSeriesModalVisible(false);
-      updateSeriesForm.resetFields();
       setSelectedSeries(null);
+      updateSeriesForm.resetFields();
       fetchData();
     } catch (error) {
       const apiError = error as ApiError;
       message.error(
         apiError.response?.data?.message || "Error updating series",
       );
-    } finally {
-      setActionLoading(false);
     }
   };
 
   const handleDeleteSeries = async (id: number) => {
     setDeleteLoading(id);
-    setActionLoading(true);
     try {
       await api.series.deleteSeries(id);
-      setSuccessAnim(true);
-      setTimeout(() => setSuccessAnim(false), 1200);
       message.success("Series deleted successfully");
       fetchData();
     } catch (error) {
@@ -283,7 +261,6 @@ const ManagePlayoffs: React.FC = () => {
       );
     } finally {
       setDeleteLoading(null);
-      setActionLoading(false);
     }
   };
 
@@ -500,48 +477,6 @@ const ManagePlayoffs: React.FC = () => {
         }}
         footer={null}
       >
-        <AnimatePresence>
-          {actionLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Loading />
-            </motion.div>
-          )}
-          {successAnim && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ color: "#52c41a", fontSize: "24px" }}>✔</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
         <Form form={roundForm} onFinish={handleRoundSubmit} layout="vertical">
           <Form.Item
             name="name"
@@ -615,48 +550,6 @@ const ManagePlayoffs: React.FC = () => {
         }}
         footer={null}
       >
-        <AnimatePresence>
-          {actionLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Loading />
-            </motion.div>
-          )}
-          {successAnim && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ color: "#52c41a", fontSize: "24px" }}>✔</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
         <Form form={seriesForm} onFinish={handleSeriesSubmit} layout="vertical">
           <Form.Item
             name="roundId"
@@ -739,48 +632,6 @@ const ManagePlayoffs: React.FC = () => {
         }}
         footer={null}
       >
-        <AnimatePresence>
-          {actionLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Loading />
-            </motion.div>
-          )}
-          {successAnim && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ color: "#52c41a", fontSize: "24px" }}>✔</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
         <Form
           form={updateSeriesForm}
           layout="vertical"
@@ -875,7 +726,7 @@ const ManagePlayoffs: React.FC = () => {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
+            <Button type="primary" htmlType="submit">
               Mettre à jour la Série
             </Button>
           </Form.Item>

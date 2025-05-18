@@ -8,13 +8,11 @@ import {
   DesktopOutlined,
 } from "@ant-design/icons";
 import { useTheme } from "../../contexts/ThemeContext";
-import { motion, AnimatePresence } from "framer-motion";
 
 const ThemeToggle: React.FC = () => {
   const { themeMode, setThemeMode, isDarkMode } = useTheme();
   const { token } = theme.useToken();
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [bulbAnim, setBulbAnim] = React.useState(false);
 
   const items = [
     {
@@ -63,22 +61,8 @@ const ThemeToggle: React.FC = () => {
       trigger={["click"]}
       open={menuOpen}
       onOpenChange={setMenuOpen}
-      dropdownRender={(menu) => (
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
-            >
-              {menu}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      )}
     >
-      <motion.button
+      <button
         type="button"
         style={{
           background: "none",
@@ -92,20 +76,9 @@ const ThemeToggle: React.FC = () => {
           transition: "background-color 0.2s",
         }}
         className="hover-effect"
-        whileTap={{ scale: 0.92, rotate: 18 }}
-        onClick={() => {
-          setBulbAnim(true);
-          setTimeout(() => setBulbAnim(false), 400);
-        }}
         aria-label="Toggle theme"
       >
-        <motion.span
-          animate={
-            bulbAnim
-              ? { rotate: [0, 18, -12, 0], scale: [1, 1.18, 0.92, 1] }
-              : {}
-          }
-          transition={{ duration: 0.4 }}
+        <span
           style={{
             display: "inline-block",
             fontSize: "20px",
@@ -115,8 +88,8 @@ const ThemeToggle: React.FC = () => {
           <BulbOutlined
             style={{ filter: isDarkMode ? "brightness(1.2)" : "none" }}
           />
-        </motion.span>
-      </motion.button>
+        </span>
+      </button>
     </Dropdown>
   );
 };
