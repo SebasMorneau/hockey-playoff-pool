@@ -1,5 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { Table, Select, InputNumber, message, Typography, Space } from "antd";
+import {
+  Table,
+  Select,
+  InputNumber,
+  message,
+  Typography,
+  Space,
+  Button,
+  Modal,
+  Form,
+  Radio,
+  Row,
+  Col,
+} from "antd";
 import { Team } from "../../types";
 import api from "../../services/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,11 +48,274 @@ interface SeriesData {
   }[];
 }
 
+interface AdminPredictionModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  users: { id: number; name: string }[];
+  seriesData: SeriesData[];
+}
+
+const AdminPredictionModal: React.FC<AdminPredictionModalProps> = ({
+  visible,
+  onClose,
+  onSuccess,
+  users,
+  seriesData,
+}) => {
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedWinner, setSelectedWinner] = useState<number | null>(null);
+  const [selectedGames, setSelectedGames] = useState<number | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<SeriesData | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      form.resetFields();
+      setSelectedWinner(null);
+      setSelectedGames(null);
+      setSelectedSeries(null);
+    }
+  }, [visible, form]);
+
+  const handleTeamSelect = (teamId: number) => {
+    setSelectedWinner(teamId);
+    form.setFieldsValue({ predictedWinnerId: teamId });
+  };
+
+  const handleGamesSelect = (games: number) => {
+    setSelectedGames(games);
+    form.setFieldsValue({ predictedGames: games });
+  };
+
+  const handleSeriesSelect = (seriesId: number) => {
+    const selectedSeriesData = seriesData.find((s) => s.id === seriesId);
+    setSelectedSeries(selectedSeriesData || null);
+    form.setFieldsValue({
+      predictedWinnerId: undefined,
+      predictedGames: undefined,
+    });
+    setSelectedWinner(null);
+    setSelectedGames(null);
+  };
+
+  const handleSubmit = async () => {
+    try {
+      await form.validateFields();
+      const values = form.getFieldsValue();
+
+      setSubmitting(true);
+
+      await api.admin.updateUserPrediction(values.userId, values.seriesId, {
+        predictedWinnerId: values.predictedWinnerId,
+        predictedGames: values.predictedGames,
+        points: 0, // Initialize with 0 points for new predictions
+      });
+
+      message.success("Prédiction créée avec succès!");
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error("Error creating prediction:", error);
+      message.error("Échec de la création de la prédiction.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const gameOptions = [4, 5, 6, 7].map((games) => ({
+    label: `En ${games} matchs`,
+    value: games,
+  }));
+
+  return (
+    <Modal
+      title="Créer une Prédiction"
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      centered
+      maskClosable={!submitting}
+      closable={!submitting}
+      keyboard={!submitting}
+      width={360}
+    >
+      <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form.Item
+          name="userId"
+          label="Utilisateur"
+          rules={[
+            { required: true, message: "Veuillez sélectionner un utilisateur" },
+          ]}
+        >
+          <Select placeholder="Sélectionner un utilisateur">
+            {users.map((user) => (
+              <Select.Option key={user.id} value={user.id}>
+                {user.name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          name="seriesId"
+          label="Série"
+          rules={[
+            { required: true, message: "Veuillez sélectionner une série" },
+          ]}
+        >
+          <Select
+            placeholder="Sélectionner une série"
+            onChange={handleSeriesSelect}
+          >
+            {seriesData.map((s) => (
+              <Select.Option key={s.id} value={s.id}>
+                {s.HomeTeam.name} vs {s.AwayTeam.name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        {selectedSeries && (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              Sélectionnez l&apos;équipe victorieuse:
+            </div>
+
+            <Form.Item
+              name="predictedWinnerId"
+              rules={[
+                { required: true, message: "Veuillez sélectionner une équipe" },
+              ]}
+            >
+              <Radio.Group
+                buttonStyle="solid"
+                onChange={(e) => handleTeamSelect(e.target.value)}
+                style={{ width: "100%" }}
+              >
+                <Row gutter={[8, 8]}>
+                  <Col xs={12} md={6}>
+                    <Radio.Button
+                      value={selectedSeries.HomeTeam.id}
+                      style={{
+                        width: "100%",
+                        textAlign: "center",
+                        height: "32px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {selectedSeries.HomeTeam.shortName}
+                    </Radio.Button>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Radio.Button
+                      value={selectedSeries.AwayTeam.id}
+                      style={{
+                        width: "100%",
+                        textAlign: "center",
+                        height: "32px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {selectedSeries.AwayTeam.shortName}
+                    </Radio.Button>
+                  </Col>
+                </Row>
+              </Radio.Group>
+            </Form.Item>
+
+            {selectedWinner && (
+              <>
+                <div style={{ marginTop: 16, marginBottom: 12 }}>
+                  Nombre de matchs:
+                </div>
+                <Form.Item
+                  name="predictedGames"
+                  rules={[
+                    {
+                      required: true,
+                      message: "Veuillez sélectionner le nombre de matchs",
+                    },
+                  ]}
+                >
+                  <Radio.Group
+                    buttonStyle="solid"
+                    onChange={(e) => handleGamesSelect(e.target.value)}
+                    style={{ width: "100%" }}
+                  >
+                    <Row gutter={[8, 8]}>
+                      {gameOptions.map((option) => (
+                        <Col xs={12} md={6} key={option.value}>
+                          <Radio.Button
+                            value={option.value}
+                            style={{
+                              width: "100%",
+                              textAlign: "center",
+                              height: "32px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {option.value}
+                          </Radio.Button>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Radio.Group>
+                </Form.Item>
+              </>
+            )}
+          </>
+        )}
+
+        <Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={submitting}
+            disabled={!selectedWinner || !selectedGames || submitting}
+            block
+          >
+            Créer la prédiction
+          </Button>
+        </Form.Item>
+      </Form>
+
+      {submitting && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+        >
+          <Loading />
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 const ManagePredictions: React.FC = () => {
   const [predictions, setPredictions] = useState<UserPrediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [successAnim, setSuccessAnim] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [series, setSeries] = useState<SeriesData[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -48,8 +324,12 @@ const ManagePredictions: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const predictionsResponse =
-        await api.predictions.getAllUsersPredictions();
+      const [predictionsResponse, usersResponse, seriesResponse] =
+        await Promise.all([
+          api.predictions.getAllUsersPredictions(),
+          api.admin.getAllUsers(),
+          api.series.getAllSeries(),
+        ]);
 
       // Transform the series data into predictions
       const allPredictions: UserPrediction[] = [];
@@ -73,6 +353,8 @@ const ManagePredictions: React.FC = () => {
       }
 
       setPredictions(allPredictions);
+      setUsers(usersResponse.data);
+      setSeries(seriesResponse.data);
     } catch (error) {
       message.error("Failed to fetch data");
     } finally {
@@ -194,7 +476,19 @@ const ManagePredictions: React.FC = () => {
 
   return (
     <div>
-      <Title level={2}>Gérer les Prédictions</Title>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Title level={2}>Gérer les Prédictions</Title>
+        <Button type="primary" onClick={() => setModalVisible(true)}>
+          Créer une Prédiction
+        </Button>
+      </div>
       <AnimatePresence>
         {actionLoading && (
           <motion.div
@@ -246,6 +540,16 @@ const ManagePredictions: React.FC = () => {
         dataSource={predictions}
         loading={loading}
         rowKey={(record) => `${record.userId}-${record.seriesId}`}
+      />
+      <AdminPredictionModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSuccess={() => {
+          setModalVisible(false);
+          fetchData();
+        }}
+        users={users}
+        seriesData={series}
       />
     </div>
   );

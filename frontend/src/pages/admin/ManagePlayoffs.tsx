@@ -21,7 +21,6 @@ import type { TabsProps } from "antd";
 import { useAuthStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
 import ManagePredictions from "./ManagePredictions";
-import { motion, AnimatePresence } from "framer-motion";
 import Loading from "../../components/common/Loading";
 import dayjs from "dayjs";
 
@@ -663,50 +662,24 @@ const ManagePlayoffs: React.FC = () => {
         width={600}
         centered
       >
-        <AnimatePresence>
-          {actionLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1001,
-              }}
-            >
-              <Loading />
-            </motion.div>
-          )}
-          {successAnim && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.5)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1001,
-              }}
-            >
-              <div style={{ color: "#52c41a", fontSize: "24px" }}>✔</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {loading && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 1001,
+            }}
+          >
+            <Loading />
+          </div>
+        )}
         <Form
           form={updateSeriesForm}
           layout="vertical"
