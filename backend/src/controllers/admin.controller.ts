@@ -532,3 +532,89 @@ export const testEmailSending = async (
     next(error);
   }
 };
+
+// Create user prediction (admin only)
+export const createUserPrediction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { userId, seriesId, predictedWinnerId, predictedGames } = req.body;
+
+    // Validate input
+    if (!userId || !seriesId || !predictedWinnerId || !predictedGames) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Check if games is between 4 and 7
+    if (predictedGames < 4 || predictedGames > 7) {
+      return res.status(400).json({ message: 'Predicted games must be between 4 and 7' });
+    }
+
+    // Get the series
+    const series = await Series.findByPk(seriesId, {
+      include: [
+        { model: Team, as: 'HomeTeam' },
+        { model: Team, as: 'AwayTeam' },
+      ],
+    });
+
+    if (!series) {
+      return res.status(404).json({ message: 'Series not found' });
+    }
+
+    // Validate selected team is part of the series
+    if (
+      predictedWinnerId !== series.homeTeamId &&
+      predictedWinnerId !== series.awayTeamId
+    ) {
+      return res.status(400).json({
+        message: 'Predicted winner must be one of the teams in the series',
+      });
+    }
+
+    // Check if prediction already exists
+    const existingPrediction = await Prediction.findOne({
+      where: {
+        userId,
+        seriesId,
+      },
+    });
+
+    if (existingPrediction) {
+      return res.status(400).json({
+        message: 'Prediction already exists for this user and series',
+      });
+    }
+
+    // Create the prediction
+    const prediction = await Prediction.create({
+      userId,
+      seriesId,
+      predictedWinnerId,
+      predictedGames,
+      points: 0,
+    });
+
+    // Get the created prediction with all associations
+    const createdPrediction = await Prediction.findOne({
+      where: {
+        id: prediction.id,
+      },
+      include: [
+        { model: Series, as: 'Series' },
+        { model: User, as: 'User' },
+        { model: Team, as: 'PredictedWinner' },
+      ],
+    });
+
+    return res.status(201).json({
+      message: 'Prediction created successfully',
+      prediction: createdPrediction,
+    });
+  } catch (error) {
+    logger.error('Error creating user prediction:', error);
+    next(error);
+  }
+};

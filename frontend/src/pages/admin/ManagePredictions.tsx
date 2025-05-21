@@ -106,10 +106,11 @@ const AdminPredictionModal: React.FC<AdminPredictionModalProps> = ({
 
       setSubmitting(true);
 
-      await api.admin.updateUserPrediction(values.userId, values.seriesId, {
+      await api.admin.createUserPrediction({
+        userId: values.userId,
+        seriesId: values.seriesId,
         predictedWinnerId: values.predictedWinnerId,
         predictedGames: values.predictedGames,
-        points: 0, // Initialize with 0 points for new predictions
       });
 
       message.success("Prédiction créée avec succès!");

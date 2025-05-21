@@ -246,6 +246,14 @@ const api = {
         `/admin/users/${userId}/predictions/${seriesId}`,
         data,
       ),
+
+    // Create user prediction
+    createUserPrediction: (data: {
+      userId: number;
+      seriesId: number;
+      predictedWinnerId: number;
+      predictedGames: number;
+    }) => axiosInstance.post("/admin/users/predictions", data),
   },
 };
 

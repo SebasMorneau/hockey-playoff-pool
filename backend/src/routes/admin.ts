@@ -13,7 +13,8 @@ import {
   deleteUser,
   updateUserPrediction,
   getEmailDiagnostics,
-  testEmailSending
+  testEmailSending,
+  createUserPrediction
 } from '../controllers/admin.controller';
 import { getConfig, updateConfig } from '../controllers/config.controller';
 
@@ -127,6 +128,19 @@ router.patch(
     validateRequest as unknown as express.RequestHandler,
   ],
   updateUserPrediction as unknown as express.RequestHandler,
+);
+
+// Create user prediction
+router.post(
+  '/users/predictions',
+  [
+    body('userId').isInt().withMessage('User ID must be an integer'),
+    body('seriesId').isInt().withMessage('Series ID must be an integer'),
+    body('predictedWinnerId').isInt().withMessage('Predicted winner ID must be an integer'),
+    body('predictedGames').isInt({ min: 4, max: 7 }).withMessage('Predicted games must be between 4 and 7'),
+    validateRequest as unknown as express.RequestHandler,
+  ],
+  createUserPrediction as unknown as express.RequestHandler,
 );
 
 // Email diagnostics endpoint
