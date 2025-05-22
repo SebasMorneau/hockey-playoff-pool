@@ -230,7 +230,7 @@ export const createMatchup = async (
     } = req.body;
 
     // Check if round exists
-    let round = await Round.findByPk(roundId);
+    const round = await Round.findByPk(roundId);
     if (!round) {
       return res.status(404).json({ message: 'Round not found' });
     }

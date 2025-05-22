@@ -17,23 +17,6 @@ interface SeriesAttributes {
   completed: boolean;
 }
 
-interface RoundAttributes {
-  id: number;
-  name: string;
-  number: number;
-  season: string;
-  active: boolean;
-}
-
-interface PredictionAttributes {
-  id: number;
-  userId: number;
-  seriesId: number;
-  predictedWinnerId: number;
-  predictedGames: number;
-  points?: number;
-}
-
 // Submit or update series prediction
 export const submitPrediction = async (
   req: Request,
@@ -202,7 +185,6 @@ export const getSeriesPredictions = async (
     }
 
     // Check if series is completed or has started
-    const now = new Date();
     const seriesStarted = series.completed || false;
 
     if (!series.completed && !seriesStarted) {
@@ -303,33 +285,69 @@ export const getLeaderboard = async (
   next: NextFunction,
 ) => {
   try {
-    // Use a more efficient query with Sequelize
-    const leaderboard = await User.findAll({
-      attributes: [
-        'id',
-        'name',
-        [Sequelize.fn('SUM', Sequelize.col('Predictions.points')), 'totalPoints'],
-      ],
+    // Get all series with their predictions
+    const allSeries = await Series.findAll({
       include: [
+        { model: Team, as: 'HomeTeam' },
+        { model: Team, as: 'AwayTeam' },
+        { model: Team, as: 'WinningTeam' },
         {
           model: Prediction,
           as: 'Predictions',
-          attributes: [],
-          required: false,
-        },
+          include: [
+            { model: User, as: 'User', attributes: ['id', 'name'] },
+            { model: Team, as: 'PredictedWinner' }
+          ]
+        }
       ],
-      group: ['User.id', 'User.name'],
-      order: [[Sequelize.literal('totalPoints'), 'DESC']],
+      where: { completed: true }
     });
 
-    // Format the response
-    const formattedLeaderboard = leaderboard.map((user: any) => ({
-      userId: user.id,
-      name: user.name,
-      totalPoints: parseInt(user.getDataValue('totalPoints')) || 0,
-    }));
+    // Calculate points and perfect predictions for each user
+    const userStats = new Map();
 
-    res.status(200).json({ leaderboard: formattedLeaderboard });
+    allSeries.forEach(series => {
+      const totalGames = series.homeTeamWins + series.awayTeamWins;
+      
+      series.Predictions?.forEach(prediction => {
+        if (!prediction.User) return;
+        const userId = prediction.User.id;
+        const userName = prediction.User.name;
+        
+        if (!userStats.has(userId)) {
+          userStats.set(userId, {
+            userId,
+            name: userName,
+            totalPoints: 0,
+            perfectPredictions: 0
+          });
+        }
+        
+        const stats = userStats.get(userId);
+        
+        // Add points
+        if (prediction.predictedWinnerId === series.winningTeamId) {
+          stats.totalPoints += 1; // Point for correct winner
+          
+          // Check for perfect prediction (correct winner and games)
+          if (prediction.predictedGames === totalGames) {
+            stats.totalPoints += 2; // Additional points for correct games
+            stats.perfectPredictions += 1;
+          }
+        }
+      });
+    });
+
+    // Convert to array and sort by points (desc) and perfect predictions (desc)
+    const leaderboard = Array.from(userStats.values())
+      .sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) {
+          return b.totalPoints - a.totalPoints;
+        }
+        return b.perfectPredictions - a.perfectPredictions;
+      });
+
+    res.status(200).json({ leaderboard });
   } catch (error) {
     logger.error('Error getting leaderboard:', error);
     next(error);
