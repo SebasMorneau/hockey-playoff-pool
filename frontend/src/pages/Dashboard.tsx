@@ -36,6 +36,7 @@ interface LeaderboardEntry {
   userId: number;
   name: string;
   totalPoints: number;
+  perfectPredictions: number;
   rank: number;
 }
 
@@ -1604,29 +1605,56 @@ const Dashboard = () => {
                             </span>
                           )}
                         </span>
-                        <span
+
+                        <div
                           style={{
-                            fontWeight: "bold",
-                            color:
-                              entry.rank === 1
-                                ? "#FFD700"
-                                : entry.rank === 2
-                                  ? "#C0C0C0"
-                                  : entry.rank === 3
-                                    ? "#CD7F32"
-                                    : token.colorText,
-                            marginLeft: "auto",
-                            fontSize: "14px",
-                            background: token.colorBgContainer,
-                            padding: "2px 6px",
-                            borderRadius: "6px",
-                            minWidth: "28px",
-                            textAlign: "center",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
                           }}
                         >
-                          {entry.totalPoints}
-                        </span>
+                          <Tooltip title="Prédictions parfaites">
+                            <span
+                              style={{
+                                color: "#FF6B22",
+                                fontSize: "12px",
+                                fontWeight: "bold",
+                                background: "rgba(255, 107, 34, 0.1)",
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                              }}
+                            >
+                              <FireOutlined style={{ fontSize: "10px" }} />
+                              {entry.perfectPredictions}
+                            </span>
+                          </Tooltip>
+
+                          <span
+                            style={{
+                              fontWeight: "bold",
+                              color:
+                                entry.rank === 1
+                                  ? "#FFD700"
+                                  : entry.rank === 2
+                                    ? "#C0C0C0"
+                                    : entry.rank === 3
+                                      ? "#CD7F32"
+                                      : token.colorText,
+                              fontSize: "14px",
+                              background: token.colorBgContainer,
+                              padding: "2px 6px",
+                              borderRadius: "6px",
+                              minWidth: "28px",
+                              textAlign: "center",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            {entry.totalPoints}
+                          </span>
+                        </div>
                       </motion.div>
                     </Col>
                   ))}

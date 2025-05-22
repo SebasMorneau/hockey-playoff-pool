@@ -332,31 +332,52 @@ const ManagePredictions: React.FC = () => {
           api.series.getAllSeries(),
         ]);
 
+      // Add detailed logging
+      console.log("Users Response:", {
+        data: usersResponse.data,
+        hasUsers: Boolean(usersResponse.data?.users),
+        isArray: Array.isArray(usersResponse.data?.users),
+        usersLength: usersResponse.data?.users?.length,
+        rawResponse: usersResponse,
+      });
+
       // Transform the series data into predictions
       const allPredictions: UserPrediction[] = [];
-      if (predictionsResponse.data.series) {
+      if (
+        predictionsResponse.data?.series &&
+        Array.isArray(predictionsResponse.data.series)
+      ) {
         predictionsResponse.data.series.forEach((series: SeriesData) => {
-          series.Predictions.forEach((pred) => {
-            allPredictions.push({
-              id: `${pred.userId}-${series.id}`,
-              userId: pred.userId,
-              userName: pred.userName,
-              seriesId: series.id,
-              predictedWinnerId: pred.predictedWinnerId,
-              predictedGames: pred.predictedGames,
-              points: pred.points || 0,
-              HomeTeam: series.HomeTeam,
-              AwayTeam: series.AwayTeam,
-              startDate: series.startDate,
+          if (series?.Predictions && Array.isArray(series.Predictions)) {
+            series.Predictions.forEach((pred) => {
+              if (series.HomeTeam && series.AwayTeam) {
+                allPredictions.push({
+                  id: `${pred.userId}-${series.id}`,
+                  userId: pred.userId,
+                  userName: pred.userName,
+                  seriesId: series.id,
+                  predictedWinnerId: pred.predictedWinnerId,
+                  predictedGames: pred.predictedGames,
+                  points: pred.points || 0,
+                  HomeTeam: series.HomeTeam,
+                  AwayTeam: series.AwayTeam,
+                  startDate: series.startDate,
+                });
+              }
             });
-          });
+          }
         });
       }
 
       setPredictions(allPredictions);
-      setUsers(usersResponse.data);
-      setSeries(seriesResponse.data);
+      setUsers(
+        Array.isArray(usersResponse.data?.users)
+          ? usersResponse.data.users
+          : [],
+      );
+      setSeries(Array.isArray(seriesResponse.data) ? seriesResponse.data : []);
     } catch (error) {
+      console.error("Error fetching data:", error);
       message.error("Failed to fetch data");
     } finally {
       setLoading(false);
@@ -409,7 +430,8 @@ const ManagePredictions: React.FC = () => {
       key: "series",
       render: (record: UserPrediction) => (
         <span>
-          {record.HomeTeam.name} vs {record.AwayTeam.name}
+          {record.HomeTeam?.name || "Unknown"} vs{" "}
+          {record.AwayTeam?.name || "Unknown"}
         </span>
       ),
     },
@@ -426,12 +448,16 @@ const ManagePredictions: React.FC = () => {
             })
           }
         >
-          <Select.Option value={record.HomeTeam.id}>
-            {record.HomeTeam.name}
-          </Select.Option>
-          <Select.Option value={record.AwayTeam.id}>
-            {record.AwayTeam.name}
-          </Select.Option>
+          {record.HomeTeam && (
+            <Select.Option value={record.HomeTeam.id}>
+              {record.HomeTeam.name}
+            </Select.Option>
+          )}
+          {record.AwayTeam && (
+            <Select.Option value={record.AwayTeam.id}>
+              {record.AwayTeam.name}
+            </Select.Option>
+          )}
         </Select>
       ),
     },
@@ -502,11 +528,11 @@ const ManagePredictions: React.FC = () => {
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.4)",
-              zIndex: 1000,
+              background: "rgba(0,0,0,0.3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              zIndex: 1000,
             }}
           >
             <Loading />
@@ -537,20 +563,17 @@ const ManagePredictions: React.FC = () => {
         )}
       </AnimatePresence>
       <Table
+        dataSource={Array.isArray(predictions) ? predictions : []}
         columns={columns}
-        dataSource={predictions}
+        rowKey="id"
         loading={loading}
-        rowKey={(record) => `${record.userId}-${record.seriesId}`}
       />
       <AdminPredictionModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSuccess={() => {
-          setModalVisible(false);
-          fetchData();
-        }}
-        users={users}
-        seriesData={series}
+        onSuccess={fetchData}
+        users={Array.isArray(users) ? users : []}
+        seriesData={Array.isArray(series) ? series : []}
       />
     </div>
   );

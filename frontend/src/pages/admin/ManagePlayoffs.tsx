@@ -12,7 +12,6 @@ import {
   theme,
   Popconfirm,
   Space,
-  Typography,
   Row,
   Col,
 } from "antd";
@@ -23,8 +22,6 @@ import { useNavigate } from "react-router-dom";
 import ManagePredictions from "./ManagePredictions";
 import Loading from "../../components/common/Loading";
 import dayjs from "dayjs";
-
-const { Title } = Typography;
 
 interface Team {
   id: number;
@@ -110,7 +107,6 @@ const ManagePlayoffs: React.FC = () => {
   const [series, setSeries] = useState<Series[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
   const [roundModalVisible, setRoundModalVisible] = useState(false);
   const [seriesModalVisible, setSeriesModalVisible] = useState(false);
   const [roundForm] = Form.useForm();
@@ -140,16 +136,43 @@ const ManagePlayoffs: React.FC = () => {
         api.series.getAllSeries(),
         api.teams.getAllTeams(),
       ]);
-      console.log("Rounds:", roundsRes.data);
-      console.log("Series:", seriesRes.data);
-      console.log("Teams:", teamsRes.data);
-      setRounds(roundsRes.data.rounds || []);
-      setSeries(seriesRes.data || []);
-      setTeams(teamsRes.data.teams || []);
+
+      // Add detailed logging
+      console.log("Rounds Response:", {
+        data: roundsRes.data,
+        hasRounds: Boolean(roundsRes.data?.rounds),
+        isArray: Array.isArray(roundsRes.data?.rounds),
+      });
+      console.log("Series Response:", {
+        data: seriesRes.data,
+        isArray: Array.isArray(seriesRes.data),
+      });
+      console.log("Teams Response:", {
+        data: teamsRes.data,
+        hasTeams: Boolean(teamsRes.data?.teams),
+        isArray: Array.isArray(teamsRes.data?.teams),
+      });
+
+      // Ensure we're setting arrays
+      const roundsData = Array.isArray(roundsRes.data?.rounds)
+        ? roundsRes.data.rounds
+        : [];
+      const seriesData = Array.isArray(seriesRes.data) ? seriesRes.data : [];
+      const teamsData = Array.isArray(teamsRes.data?.teams)
+        ? teamsRes.data.teams
+        : [];
+
+      setRounds(roundsData);
+      setSeries(seriesData);
+      setTeams(teamsData);
     } catch (error) {
       const apiError = error as ApiError;
+      console.error("Error details:", {
+        error,
+        message: apiError.response?.data?.message,
+        response: apiError.response?.data,
+      });
       message.error(apiError.response?.data?.message || "Error fetching data");
-      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -269,7 +292,6 @@ const ManagePlayoffs: React.FC = () => {
   };
 
   const handleDeleteSeries = async (id: number) => {
-    setDeleteLoading(id);
     try {
       await api.series.deleteSeries(id);
       message.success("Series deleted successfully");
@@ -279,190 +301,137 @@ const ManagePlayoffs: React.FC = () => {
       message.error(
         apiError.response?.data?.message || "Failed to delete series",
       );
-    } finally {
-      setDeleteLoading(null);
     }
   };
 
-  const roundColumns = [
-    {
-      title: "Nom",
-      dataIndex: "name",
-      key: "name",
-      render: (text: string) => (
-        <span style={{ color: token.colorText }}>{text}</span>
-      ),
-    },
-    {
-      title: "Statut",
-      dataIndex: "active",
-      key: "active",
-      render: (active: boolean) => (active ? "Actif" : "Inactif"),
-    },
-  ];
-
-  const seriesColumns = [
-    {
-      title: "Ronde",
-      key: "round",
-      render: (record: Series) => record.Round?.name || "Ronde Inconnue",
-    },
-    {
-      title: "Match",
-      key: "matchup",
-      render: (record: Series) => (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontWeight: "bold" }}>
-            {record.HomeTeam?.name || "Équipe Inconnue"}
-          </span>
-          <span>vs</span>
-          <span style={{ fontWeight: "bold" }}>
-            {record.AwayTeam?.name || "Équipe Inconnue"}
-          </span>
-        </div>
-      ),
-    },
-    {
-      title: "Date de Début",
-      key: "startDate",
-      render: (record: Series) =>
-        record.startDate
-          ? new Date(record.startDate).toLocaleDateString()
-          : "Non définie",
-    },
-    {
-      title: "Date de Fin",
-      key: "endDate",
-      render: (record: Series) =>
-        record.endDate
-          ? new Date(record.endDate).toLocaleDateString()
-          : "En cours",
-    },
-    {
-      title: "Score",
-      key: "score",
-      render: (record: Series) => (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span
-            style={{
-              fontWeight: "bold",
-              color:
-                record.homeTeamWins > record.awayTeamWins
-                  ? "#52c41a"
-                  : "inherit",
-            }}
-          >
-            {record.homeTeamWins}
-          </span>
-          <span>-</span>
-          <span
-            style={{
-              fontWeight: "bold",
-              color:
-                record.awayTeamWins > record.homeTeamWins
-                  ? "#52c41a"
-                  : "inherit",
-            }}
-          >
-            {record.awayTeamWins}
-          </span>
-        </div>
-      ),
-    },
-    {
-      title: "Matchs Joués",
-      dataIndex: "gamesPlayed",
-      key: "gamesPlayed",
-    },
-    {
-      title: "Statut",
-      key: "status",
-      render: (record: Series) => (
-        <span
-          style={{
-            color: record.completed ? "#52c41a" : "#1890ff",
-            fontWeight: "bold",
-          }}
-        >
-          {record.completed ? "Terminé" : "En Cours"}
-        </span>
-      ),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (record: Series) => (
-        <Space>
-          <Button type="primary" onClick={() => handleUpdateSeries(record)}>
-            Mettre à jour le Score
-          </Button>
-          <Popconfirm
-            title="Êtes-vous sûr de vouloir supprimer cette série?"
-            description="Cette action ne peut pas être annulée."
-            onConfirm={() => handleDeleteSeries(record.id)}
-            okText="Oui"
-            cancelText="Non"
-          >
-            <Button type="primary" danger loading={deleteLoading === record.id}>
-              Supprimer
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
   const items: TabsProps["items"] = [
     {
-      key: "rounds",
+      key: "1",
       label: "Rondes",
       children: (
         <div>
-          <Title level={3}>Gérer les Rondes</Title>
-          <Button
-            type="primary"
-            onClick={() => setRoundModalVisible(true)}
-            style={{ marginBottom: "16px" }}
-          >
-            Ajouter une Ronde
-          </Button>
+          <div style={{ marginBottom: 16 }}>
+            <Button type="primary" onClick={() => setRoundModalVisible(true)}>
+              Créer une Ronde
+            </Button>
+          </div>
           <Table
-            columns={roundColumns}
-            dataSource={rounds}
-            loading={loading}
+            dataSource={Array.isArray(rounds) ? rounds : []}
+            columns={[
+              {
+                title: "Nom",
+                dataIndex: "name",
+                key: "name",
+              },
+              {
+                title: "Numéro",
+                dataIndex: "number",
+                key: "number",
+              },
+              {
+                title: "Saison",
+                dataIndex: "season",
+                key: "season",
+              },
+              {
+                title: "Statut",
+                dataIndex: "active",
+                key: "active",
+                render: (active: boolean) => (active ? "Active" : "Inactive"),
+              },
+            ]}
             rowKey="id"
           />
         </div>
       ),
     },
     {
-      key: "series",
+      key: "2",
       label: "Séries",
       children: (
         <div>
-          <Title level={3}>Gérer les Séries</Title>
-          <Button
-            type="primary"
-            onClick={() => setSeriesModalVisible(true)}
-            style={{ marginBottom: "16px" }}
-          >
-            Ajouter une Série
-          </Button>
+          <div style={{ marginBottom: 16 }}>
+            <Button type="primary" onClick={() => setSeriesModalVisible(true)}>
+              Créer une Série
+            </Button>
+          </div>
           <Table
-            columns={seriesColumns}
-            dataSource={series}
-            loading={loading}
+            dataSource={Array.isArray(series) ? series : []}
+            columns={[
+              {
+                title: "Ronde",
+                dataIndex: ["Round", "name"],
+                key: "round",
+              },
+              {
+                title: "Équipe Domicile",
+                dataIndex: ["HomeTeam", "name"],
+                key: "homeTeam",
+              },
+              {
+                title: "Équipe Extérieur",
+                dataIndex: ["AwayTeam", "name"],
+                key: "awayTeam",
+              },
+              {
+                title: "Score",
+                key: "score",
+                render: (record: Series) => (
+                  <span>
+                    {record.homeTeamWins} - {record.awayTeamWins}
+                  </span>
+                ),
+              },
+              {
+                title: "Statut",
+                key: "status",
+                render: (record: Series) => (
+                  <span>{record.completed ? "Terminé" : "En cours"}</span>
+                ),
+              },
+              {
+                title: "Actions",
+                key: "actions",
+                render: (record: Series) => (
+                  <Space>
+                    <Button
+                      type="link"
+                      onClick={() => handleUpdateSeries(record)}
+                    >
+                      Modifier
+                    </Button>
+                    <Popconfirm
+                      title="Êtes-vous sûr de vouloir supprimer cette série?"
+                      onConfirm={() => handleDeleteSeries(record.id)}
+                      okText="Oui"
+                      cancelText="Non"
+                    >
+                      <Button type="link" danger>
+                        Supprimer
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                ),
+              },
+            ]}
             rowKey="id"
           />
         </div>
       ),
     },
     {
-      key: "predictions",
+      key: "3",
       label: "Prédictions",
       children: <ManagePredictions />,
     },
   ];
+
+  // Add logging to debug the data
+  useEffect(() => {
+    console.log("Rounds:", rounds);
+    console.log("Series:", series);
+    console.log("Teams:", teams);
+  }, [rounds, series, teams]);
 
   return (
     <div style={{ color: token.colorText }}>
@@ -587,11 +556,12 @@ const ManagePlayoffs: React.FC = () => {
             ]}
           >
             <Select>
-              {rounds.map((round) => (
-                <Select.Option key={round.id} value={round.id}>
-                  {round.name}
-                </Select.Option>
-              ))}
+              {Array.isArray(rounds) &&
+                rounds.map((round) => (
+                  <Select.Option key={round.id} value={round.id}>
+                    {round.name}
+                  </Select.Option>
+                ))}
             </Select>
           </Form.Item>
           <Form.Item
@@ -605,11 +575,12 @@ const ManagePlayoffs: React.FC = () => {
             ]}
           >
             <Select>
-              {teams.map((team) => (
-                <Select.Option key={team.id} value={team.id}>
-                  {team.name}
-                </Select.Option>
-              ))}
+              {Array.isArray(teams) &&
+                teams.map((team: Team) => (
+                  <Select.Option key={team.id} value={team.id}>
+                    {team.name}
+                  </Select.Option>
+                ))}
             </Select>
           </Form.Item>
           <Form.Item
@@ -623,11 +594,12 @@ const ManagePlayoffs: React.FC = () => {
             ]}
           >
             <Select>
-              {teams.map((team) => (
-                <Select.Option key={team.id} value={team.id}>
-                  {team.name}
-                </Select.Option>
-              ))}
+              {Array.isArray(teams) &&
+                teams.map((team: Team) => (
+                  <Select.Option key={team.id} value={team.id}>
+                    {team.name}
+                  </Select.Option>
+                ))}
             </Select>
           </Form.Item>
           <Form.Item
@@ -700,11 +672,12 @@ const ManagePlayoffs: React.FC = () => {
                   ]}
                 >
                   <Select>
-                    {teams.map((team) => (
-                      <Select.Option key={team.id} value={team.id}>
-                        {team.name}
-                      </Select.Option>
-                    ))}
+                    {Array.isArray(teams) &&
+                      teams.map((team: Team) => (
+                        <Select.Option key={team.id} value={team.id}>
+                          {team.name}
+                        </Select.Option>
+                      ))}
                   </Select>
                 </Form.Item>
 
@@ -719,11 +692,12 @@ const ManagePlayoffs: React.FC = () => {
                   ]}
                 >
                   <Select>
-                    {teams.map((team) => (
-                      <Select.Option key={team.id} value={team.id}>
-                        {team.name}
-                      </Select.Option>
-                    ))}
+                    {Array.isArray(teams) &&
+                      teams.map((team: Team) => (
+                        <Select.Option key={team.id} value={team.id}>
+                          {team.name}
+                        </Select.Option>
+                      ))}
                   </Select>
                 </Form.Item>
               </div>
