@@ -1,15 +1,14 @@
 import nodemailer from 'nodemailer';
 import { logger, emailLogger, generateRequestId, createPerformanceTimer } from './logger';
 
-// Configuration des emails
-const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@emstone.ca';
-const EMAIL_SERVICE = process.env.EMAIL_SERVICE;
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASSWORD = process.env.EMAIL_PASSWORD;
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@emstone.ca';
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT || '587');
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
 const EMAIL_RETRY_ATTEMPTS = Number(process.env.EMAIL_RETRY_ATTEMPTS || '3');
-const EMAIL_RETRY_DELAY = Number(process.env.EMAIL_RETRY_DELAY || '1000'); // ms
+const EMAIL_RETRY_DELAY = Number(process.env.EMAIL_RETRY_DELAY || '1000');
 
-// Interface pour les statistiques d'email
 interface EmailStats {
   totalAttempts: number;
   successCount: number;
@@ -18,7 +17,6 @@ interface EmailStats {
   averageSendTime: number;
 }
 
-// Statistiques globales pour le monitoring des emails
 const emailStats: EmailStats = {
   totalAttempts: 0,
   successCount: 0,
@@ -27,33 +25,32 @@ const emailStats: EmailStats = {
   averageSendTime: 0,
 };
 
-// Drapeau pour suivre si l'envoi d'emails est activé
-const EMAIL_ENABLED = Boolean(EMAIL_SERVICE && EMAIL_USER && EMAIL_PASSWORD);
+const EMAIL_ENABLED = Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS);
 
 if (!EMAIL_ENABLED) {
   logger.warn(
-    "L'envoi d'emails est désactivé. Définissez EMAIL_SERVICE, EMAIL_USER et EMAIL_PASSWORD pour activer l'envoi d'emails.",
+    "L'envoi d'emails est désactivé. Définissez SMTP_HOST, SMTP_USER et SMTP_PASS pour activer l'envoi d'emails.",
   );
   emailLogger.warn(
-    "L'envoi d'emails est désactivé. Définissez EMAIL_SERVICE, EMAIL_USER et EMAIL_PASSWORD pour activer l'envoi d'emails.",
-    { emailConfig: { service: EMAIL_SERVICE ? '✓' : '✗', user: EMAIL_USER ? '✓' : '✗', password: EMAIL_PASSWORD ? '✓' : '✗' } }
+    "L'envoi d'emails est désactivé. Définissez SMTP_HOST, SMTP_USER et SMTP_PASS pour activer l'envoi d'emails.",
+    { emailConfig: { host: SMTP_HOST ? '✓' : '✗', user: SMTP_USER ? '✓' : '✗', password: SMTP_PASS ? '✓' : '✗' } }
   );
 }
 
-// Créer le transporteur en fonction de la configuration
 let transporter: nodemailer.Transporter;
 
 if (EMAIL_ENABLED) {
-  emailLogger.debug('Initialisation du transporteur email avec service: ' + EMAIL_SERVICE);
+  emailLogger.debug('Initialisation du transporteur email avec SMTP: ' + SMTP_HOST);
   transporter = nodemailer.createTransport({
-    service: EMAIL_SERVICE,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
     auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASSWORD,
+      user: SMTP_USER,
+      pass: SMTP_PASS,
     },
   });
 } else {
-  // Utiliser un transporteur de test qui enregistre les emails au lieu de les envoyer
   emailLogger.debug('Initialisation du transporteur email de test');
   transporter = nodemailer.createTransport({
     host: 'localhost',
@@ -77,24 +74,23 @@ transporter.verify((error) => {
         command: (error as any).command
       },
       emailConfig: { 
-        service: EMAIL_SERVICE, 
-        user: EMAIL_USER ? '✓' : '✗'
+        host: SMTP_HOST, 
+        port: SMTP_PORT,
+        user: SMTP_USER ? '✓' : '✗'
       }
     });
   } else {
     logger.info("Le transporteur d'email est prêt à envoyer des messages");
     emailLogger.info("Le transporteur d'email est prêt à envoyer des messages", {
       emailConfig: { 
-        service: EMAIL_SERVICE, 
+        host: SMTP_HOST,
+        port: SMTP_PORT, 
         enabled: EMAIL_ENABLED 
       }
     });
   }
 });
 
-/**
- * Fonction d'aide pour tenter d'envoyer un email avec des tentatives de réessai
- */
 async function trySendMail(
   mailOptions: nodemailer.SendMailOptions, 
   requestId: string,
@@ -147,9 +143,6 @@ async function trySendMail(
   throw lastError;
 }
 
-/**
- * Mise à jour des statistiques d'envoi d'email
- */
 function updateEmailStats(success: boolean, duration: number): void {
   emailStats.totalAttempts++;
   if (success) {
@@ -173,14 +166,10 @@ function updateEmailStats(success: boolean, duration: number): void {
   }
 }
 
-/**
- * Obtenir les statistiques actuelles d'envoi d'email
- */
 export function getEmailStats(): EmailStats {
   return { ...emailStats };
 }
 
-// Envoyer l'email avec le lien magique
 export const sendMagicLink = async (
   email: string,
   name: string,
@@ -198,16 +187,14 @@ export const sendMagicLink = async (
   });
   
   try {
-    // Valider l'adresse email
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       const errorMsg = `Adresse email invalide: ${email}`;
       emailLogger.error(errorMsg, { requestId });
       throw new Error(errorMsg);
     }
 
-    // Contenu de l'email
     const mailOptions = {
-      from: `Pool des Séries Éliminatoires NHL <${EMAIL_FROM}>`,
+      from: `Pool des Séries Éliminatoires NHL <${FROM_EMAIL}>`,
       to: email,
       subject: 'Votre Lien Magique pour le Pool des Séries Éliminatoires NHL',
       text: `
@@ -340,13 +327,11 @@ L'équipe du Pool des Séries Éliminatoires NHL
       `,
     };
 
-    // Envoyer l'email avec mécanisme de réessai
     const info = await trySendMail(mailOptions, requestId);
     
     success = true;
     const duration = timer.end();
     
-    // Mise à jour des statistiques
     updateEmailStats(true, duration);
     
     logger.info(`Email avec lien magique envoyé à ${email}`, {
@@ -383,7 +368,6 @@ L'équipe du Pool des Séries Éliminatoires NHL
   }
 };
 
-// Envoyer un email de notification
 export const sendNotification = async (
   email: string,
   subject: string,
@@ -401,29 +385,25 @@ export const sendNotification = async (
   });
   
   try {
-    // Valider l'adresse email
     if (!email || typeof email !== 'string' || !email.includes('@')) {
       const errorMsg = `Adresse email invalide: ${email}`;
       emailLogger.error(errorMsg, { requestId });
       throw new Error(errorMsg);
     }
 
-    // Contenu de l'email
     const mailOptions = {
-      from: `Pool des Séries Éliminatoires NHL <${EMAIL_FROM}>`,
+      from: `Pool des Séries Éliminatoires NHL <${FROM_EMAIL}>`,
       to: email,
       subject,
       text: textContent,
       html: htmlContent,
     };
 
-    // Envoyer l'email avec mécanisme de réessai
     const info = await trySendMail(mailOptions, requestId);
     
     success = true;
     const duration = timer.end();
     
-    // Mise à jour des statistiques
     updateEmailStats(true, duration);
     
     logger.info(`Email de notification envoyé à ${email}`, {
